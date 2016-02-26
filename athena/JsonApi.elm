@@ -1,4 +1,4 @@
-module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, jsonApiBody, filterPayloadByType, relationshipIdsByType, filterListByType, nullJsonApiBody) where
+module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, jsonApiBody, filterPayloadByType, relationshipIdsByType, filterListByType, processDomainEntity, nullJsonApiBody) where
 
 import Json.Decode as Json exposing (..)
 import Json.Decode.Extra exposing ((|:))
@@ -51,6 +51,12 @@ jsonApiIdentity =
   succeed JsonApiIdentity
     |: ("id" := string)
     |: ("type" := string)
+
+processDomainEntity : (String -> Decoder a) -> (a -> List JsonApiPayload -> JsonApiPayload -> a) -> List JsonApiPayload -> JsonApiPayload -> a
+processDomainEntity genericDecoder relationshipProcessor includedRecords payload =
+  case decodeValue (genericDecoder payload.id) payload.attributes of
+    Ok decodedValue' -> relationshipProcessor decodedValue' includedRecords payload
+    Err message -> crash message
 
 jsonApiRelationshipTuples : List (String, Value) -> Decoder (List JsonApiRelationship)
 jsonApiRelationshipTuples listOfTuples =

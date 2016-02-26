@@ -25,7 +25,7 @@ type alias TeachingMove =
   { id: String
   , location_in_topic: String
   , line_number: String
-  , items: List Item
+  , item: Item
   }
 
 type alias Topic =
@@ -47,14 +47,17 @@ initialModel = { topics = [] }
 nullTopic = { id = "", locations = [], name = "", teaching_moves = [] }
 
 nullTeachingMove : TeachingMove
-nullTeachingMove = { id = "", location_in_topic = "", line_number = "", items = [] }
+nullTeachingMove = { id = "", location_in_topic = "", line_number = "", item = nullItem }
+
+nullItem : Item
+nullItem = { id = "", name = "", description = "", requesting_feedback = False }
 
 item : String -> Decoder Item
 item id =
   succeed (Item id)
-    |: ("name" := oneOf [ string, null "" ])
+    |: ("name" := string)
     |: ("description" := oneOf [ string, null "" ])
-    |: ("requesting-feedback" := oneOf [ bool, null False ])
+    |: ("requesting-feedback" := bool)
 
 topic : String -> Decoder Topic
 topic id =
@@ -68,7 +71,7 @@ teachingMove id =
   succeed (TeachingMove id)
     |: ("location-in-topic" := oneOf [ string, null ""])
     |: ("line-number" := oneOf [ string, null ""])
-    |: (succeed [])
+    |: (succeed nullItem)
 
 noEffects : a -> (a, Effects b)
 noEffects thing = (thing, Effects.none)
@@ -85,18 +88,11 @@ init = (initialModel, getTopics)
 
 
 
-processDomainEntity : (String -> Decoder a) -> (a -> List JsonApiPayload -> JsonApiPayload -> a) -> List JsonApiPayload -> JsonApiPayload -> a
-processDomainEntity genericDecoder relationshipProcessor includedRecords payload =
-  case decodeValue (genericDecoder payload.id) payload.attributes of
-    Ok decodedValue' -> relationshipProcessor decodedValue' includedRecords payload
-    Err message -> crash message
-
-
-
 processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
 processTeachingMoveRelationships teachingMove included payload =
   let items = log "items" (handleItems "items" included payload)
-  in { teachingMove | items = items }
+      item = Maybe.withDefault nullItem (items |> List.head)
+  in { teachingMove | item = item }
 
 processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
 processTopicRelationships topic included payload =
@@ -119,7 +115,7 @@ handle filter includedRecords primaryRecord =
 
 handleItems : String -> List JsonApiPayload -> JsonApiPayload -> List Item
 handleItems filter includedRecords primaryRecord =
-  let relationshipIds = log ("relationshipIds for " ++ filter) (relationshipIdsByType filter primaryRecord.relationships)
+  let relationshipIds = log ("relationshipIds for " ++ filter) (relationshipIdsByType "item" primaryRecord.relationships)
       filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
       filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
       recordsLength = log "records length" (includedRecords |> List.head)
@@ -176,7 +172,7 @@ renderTeachingMove : TeachingMove -> Html
 renderTeachingMove teachingMove =
   li [] [
     text (teachingMove.line_number ++ " - " ++ teachingMove.location_in_topic)
-  , div [] (List.map (\item -> text item.name) teachingMove.items)
+  , text teachingMove.item.name
   ]
 
 app = StartApp.start { init = init, view = view, update = update, inputs = inputs }
