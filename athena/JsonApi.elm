@@ -6,7 +6,7 @@ import Debug exposing (..)
 
 type alias JsonApiBody =
   { data: List JsonApiPayload
-  , included: List JsonApiIdentity
+  , included: List JsonApiPayload
   }
 
 type alias JsonApiPayload =
@@ -37,7 +37,7 @@ jsonApiBody =
   succeed JsonApiBody
     |: ("data" := list jsonApiPayload)
     -- |: ((maybe ("included" := list jsonApiPayload)) `andThen` maybeListToDecoderList)
-    |: ("included" := list jsonApiIdentity)
+    |: ("included" := list jsonApiPayload)
 
 jsonApiPayload : Decoder JsonApiPayload
 jsonApiPayload =

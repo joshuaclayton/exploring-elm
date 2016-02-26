@@ -38,6 +38,9 @@ initialModel = { topics = [] }
 
 nullTopic = { id = "", locations = [], name = "", teaching_moves = [] }
 
+nullTeachingMove : TeachingMove
+nullTeachingMove = { id = "", location_in_topic = "", line_number = "" }
+
 topic : String -> Decoder Topic
 topic id =
   succeed (Topic id)
@@ -48,13 +51,19 @@ topic id =
 teachingMove : String -> Decoder TeachingMove
 teachingMove id =
   succeed (TeachingMove id)
-    |: ("location-in-topic" := string)
-    |: ("line-number" := string)
+    |: ("location-in-topic" := oneOf [ string, null ""])
+    |: ("line-number" := oneOf [ string, null ""])
 
 noEffects : a -> (a, Effects b)
 noEffects thing = (thing, Effects.none)
 
 init = (initialModel, getTopics)
+
+processTeachingMove : JsonApiPayload -> TeachingMove
+processTeachingMove teachingMovePayload =
+  case decodeValue (teachingMove teachingMovePayload.id) teachingMovePayload.attributes of
+    Ok val -> val
+    Err message -> crash message
 
 processTopic : JsonApiBody -> JsonApiPayload -> Topic
 processTopic body topicPayload =
@@ -62,16 +71,17 @@ processTopic body topicPayload =
     Ok topic' -> processTopicRelationships topic' body.included topicPayload
     Err message -> crash message
 
-handle : String -> List JsonApiIdentity -> JsonApiPayload -> List TeachingMove
+handle : String -> List JsonApiPayload -> JsonApiPayload -> List TeachingMove
 handle filter includedRecords primaryRecord =
   let relationshipIds = log ("relationshipIds for " ++ filter) (relationshipIdsByType filter primaryRecord.relationships)
-      -- f = log "primaryRecord" primaryRecord
-      f' = log "included records" includedRecords
+      f = log "primaryRecord" primaryRecord
+      -- f' = log "included records" includedRecords
       filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
       filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
-  in List.map (\identity -> { id = identity.id, location_in_topic = "", line_number = "" }) filteredRecords
+      -- f' = log "included records" filteredRecords
+  in List.map processTeachingMove filteredRecords
 
-processTopicRelationships : Topic -> List JsonApiIdentity -> JsonApiPayload -> Topic
+processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
 processTopicRelationships topic included payload =
   let teachingMoves = log "moves" (handle "teaching-moves" included payload)
   in { topic | teaching_moves = teachingMoves }
@@ -108,7 +118,8 @@ renderTopic topic =
     []
     [ h2 [] [text (topic.name ++ " (id: " ++ topic.id ++ ")")]
     , ul [] (List.map (\location -> li [] [text location]) topic.locations)
-    , ul [] (List.map (\teaching_move -> li [] [text teaching_move.id]) topic.teaching_moves)
+    , ul [] (List.map (\teaching_move -> li [] [text (teaching_move.line_number ++ " - " ++ teaching_move.location_in_topic)]) topic.teaching_moves)
+
     ]
 
 app = StartApp.start { init = init, view = view, update = update, inputs = inputs }
