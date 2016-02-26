@@ -68,7 +68,7 @@ jsonApiRelationship : String -> Decoder JsonApiRelationship
 jsonApiRelationship name =
   succeed JsonApiRelationship
     |: (succeed name)
-    |: ((maybe ("data" := list jsonApiIdentity)) `andThen` maybeListToDecoderList)
+    |: ((maybe ("data" := oneOf [list jsonApiIdentity, map (\a -> [a]) jsonApiIdentity])) `andThen` maybeListToDecoderList)
 
 filterPayloadByType : List JsonApiPayload -> String -> (JsonApiPayload -> a) -> List a
 filterPayloadByType payloads filter fn =
