@@ -90,14 +90,13 @@ init = (initialModel, getTopics)
 
 processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
 processTeachingMoveRelationships teachingMove included payload =
-  let items = log "items" (handleItems "items" included payload)
+  let items = handleItems "items" included payload
       item = Maybe.withDefault nullItem (items |> List.head)
   in { teachingMove | item = item }
 
 processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
 processTopicRelationships topic included payload =
-  let teachingMoves = log "moves" (handle "teaching-moves" included payload)
-      includedLength = log "included length" (included |> List.length)
+  let teachingMoves = handle "teaching-moves" included payload
   in { topic | teaching_moves = teachingMoves }
 
 nullRelationshipProcessor : a -> List JsonApiPayload -> JsonApiPayload -> a
@@ -107,7 +106,6 @@ nullRelationshipProcessor generic included genericPayload =
 handle : String -> List JsonApiPayload -> JsonApiPayload -> List TeachingMove
 handle filter includedRecords primaryRecord =
   let relationshipIds = relationshipIdsByType filter primaryRecord.relationships
-      includedLength = log "included length in 'handle'" (includedRecords |> List.length)
       filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
       filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
   in List.map (processDomainEntity teachingMove processTeachingMoveRelationships includedRecords) filteredRecords
@@ -115,10 +113,9 @@ handle filter includedRecords primaryRecord =
 
 handleItems : String -> List JsonApiPayload -> JsonApiPayload -> List Item
 handleItems filter includedRecords primaryRecord =
-  let relationshipIds = log ("relationshipIds for " ++ filter) (relationshipIdsByType "item" primaryRecord.relationships)
+  let relationshipIds = relationshipIdsByType "item" primaryRecord.relationships
       filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
       filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
-      recordsLength = log "records length" (includedRecords |> List.head)
   in List.map (processDomainEntity item nullRelationshipProcessor includedRecords) filteredRecords
 
 
