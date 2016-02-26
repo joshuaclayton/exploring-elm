@@ -73,12 +73,9 @@ processTopic body topicPayload =
 
 handle : String -> List JsonApiPayload -> JsonApiPayload -> List TeachingMove
 handle filter includedRecords primaryRecord =
-  let relationshipIds = log ("relationshipIds for " ++ filter) (relationshipIdsByType filter primaryRecord.relationships)
-      f = log "primaryRecord" primaryRecord
-      -- f' = log "included records" includedRecords
+  let relationshipIds = relationshipIdsByType filter primaryRecord.relationships
       filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
       filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
-      -- f' = log "included records" filteredRecords
   in List.map processTeachingMove filteredRecords
 
 processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
@@ -92,8 +89,6 @@ update action model =
     NoOp -> noEffects model
     NewResponse data ->
       let payload = Maybe.withDefault nullJsonApiBody data
-          foo' = log "payload data" payload.data
-          foo = log "payload included" (payload.included |> List.length)
       in noEffects { model | topics = (filterPayloadByType payload.data "topics" (processTopic payload)) }
 
 inputs : List (Signal Action)
@@ -119,7 +114,6 @@ renderTopic topic =
     [ h2 [] [text (topic.name ++ " (id: " ++ topic.id ++ ")")]
     , ul [] (List.map (\location -> li [] [text location]) topic.locations)
     , ul [] (List.map (\teaching_move -> li [] [text (teaching_move.line_number ++ " - " ++ teaching_move.location_in_topic)]) topic.teaching_moves)
-
     ]
 
 app = StartApp.start { init = init, view = view, update = update, inputs = inputs }

@@ -36,8 +36,7 @@ jsonApiBody : Decoder JsonApiBody
 jsonApiBody =
   succeed JsonApiBody
     |: ("data" := list jsonApiPayload)
-    -- |: ((maybe ("included" := list jsonApiPayload)) `andThen` maybeListToDecoderList)
-    |: ("included" := list jsonApiPayload)
+    |: ((maybe ("included" := list jsonApiPayload)) `andThen` maybeListToDecoderList)
 
 jsonApiPayload : Decoder JsonApiPayload
 jsonApiPayload =
