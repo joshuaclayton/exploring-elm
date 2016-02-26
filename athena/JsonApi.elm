@@ -1,4 +1,4 @@
-module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, jsonApiBody, filterPayloadByType, nullJsonApiBody) where
+module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, jsonApiBody, filterPayloadByType, relationshipIdsByType, filterListByType, nullJsonApiBody) where
 
 import Json.Decode as Json exposing (..)
 import Json.Decode.Extra exposing ((|:))
@@ -75,3 +75,18 @@ filterPayloadByType : List JsonApiPayload -> String -> (JsonApiPayload -> a) -> 
 filterPayloadByType payloads filter fn =
   let filteredPayloads = List.filter (\payload -> payload.type' == filter) payloads
   in List.map fn filteredPayloads
+
+relationshipByType : String -> List { a | name: String } -> Maybe { a | name: String }
+relationshipByType filter relationships =
+  (List.filter (\relationship -> relationship.name == filter) relationships)
+  |> List.head
+
+relationshipIdsByType : String -> List JsonApiRelationship -> List String
+relationshipIdsByType filter relationships =
+  case relationshipByType filter relationships of
+    Just relationship -> List.map .id relationship.data
+    Nothing -> []
+
+filterListByType : String -> List { a | type': String } -> List { a | type': String }
+filterListByType filter payloads =
+  List.filter (\payload -> payload.type' == filter) payloads

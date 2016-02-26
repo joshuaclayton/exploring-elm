@@ -62,34 +62,19 @@ processTopic body payload =
     Ok val -> processTopicRelationships val body payload
     Err message -> crash message
 
-relationshipByType : String -> List JsonApiRelationship -> Maybe JsonApiRelationship
-relationshipByType filter relationships =
-  (List.filter (\relationship -> relationship.name == filter) relationships)
-  |> List.head
-
-relationshipIdsByType : String -> List JsonApiRelationship -> List String
-relationshipIdsByType filter relationships =
-  case relationshipByType filter relationships of
-    Just relationship -> List.map .id relationship.data
-    Nothing -> []
-
-filterPayloadsByType : String -> List JsonApiPayload -> List JsonApiPayload
-filterPayloadsByType filter payloads =
-  List.filter (\payload -> payload.type' == filter) payloads
-
 handle : String -> List JsonApiIdentity -> JsonApiPayload -> List TeachingMove
 handle filter includedRecords primaryRecord =
-  let relationshipIds = relationshipIdsByType filter primaryRecord.relationships
-      -- filteredRecords = List.filter (\record -> List.member record.id relationshipIds) (filterPayloadsByType filter includedRecords)
-      -- mm = log "relationshipIds" relationshipIds
-      -- mm1 = log "filter" filter
-      -- mm2 = log "includedRecords" includedRecords
-  in []
+  let relationshipIds = log ("relationshipIds for " ++ filter) (relationshipIdsByType filter primaryRecord.relationships)
+      -- f = log "primaryRecord" primaryRecord
+      f' = log "included records" includedRecords
+      filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
+      filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
+  in List.map (\identity -> { id = identity.id, location_in_topic = "", line_number = "" }) filteredRecords
 
 processTopicRelationships : Topic -> JsonApiBody -> JsonApiPayload -> Topic
 processTopicRelationships topic body payload =
   let teachingMoves = log "moves" (handle "teaching-moves" body.included payload)
-  in topic
+  in { topic | teaching_moves = teachingMoves }
 
 update : Action -> Model -> (Model, Effects Action)
 update action model =
@@ -123,6 +108,7 @@ renderTopic topic =
     []
     [ h2 [] [text (topic.name ++ " (id: " ++ topic.id ++ ")")]
     , ul [] (List.map (\location -> li [] [text location]) topic.locations)
+    , ul [] (List.map (\teaching_move -> li [] [text teaching_move.id]) topic.teaching_moves)
     ]
 
 app = StartApp.start { init = init, view = view, update = update, inputs = inputs }
