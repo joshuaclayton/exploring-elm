@@ -57,9 +57,9 @@ noEffects thing = (thing, Effects.none)
 init = (initialModel, getTopics)
 
 processTopic : JsonApiBody -> JsonApiPayload -> Topic
-processTopic body payload =
-  case decodeValue (topic payload.id) payload.attributes of
-    Ok val -> processTopicRelationships val body payload
+processTopic body topicPayload =
+  case decodeValue (topic topicPayload.id) topicPayload.attributes of
+    Ok topic' -> processTopicRelationships topic' body.included topicPayload
     Err message -> crash message
 
 handle : String -> List JsonApiIdentity -> JsonApiPayload -> List TeachingMove
@@ -71,9 +71,9 @@ handle filter includedRecords primaryRecord =
       filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
   in List.map (\identity -> { id = identity.id, location_in_topic = "", line_number = "" }) filteredRecords
 
-processTopicRelationships : Topic -> JsonApiBody -> JsonApiPayload -> Topic
-processTopicRelationships topic body payload =
-  let teachingMoves = log "moves" (handle "teaching-moves" body.included payload)
+processTopicRelationships : Topic -> List JsonApiIdentity -> JsonApiPayload -> Topic
+processTopicRelationships topic included payload =
+  let teachingMoves = log "moves" (handle "teaching-moves" included payload)
   in { topic | teaching_moves = teachingMoves }
 
 update : Action -> Model -> (Model, Effects Action)
