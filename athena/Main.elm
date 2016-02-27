@@ -47,7 +47,10 @@ type alias Comment =
   { id: String
   , body: String
   , user: User
+  , comments: Responses
   }
+
+type Responses = Responses (List Comment)
 
 initialModel : Model
 initialModel = { topics = [] }
@@ -65,7 +68,7 @@ nullUser : User
 nullUser = { id = "", first_name = "", last_name = "" }
 
 nullComment : Comment
-nullComment = { id = "", body = "", user = nullUser }
+nullComment = { id = "", body = "", user = nullUser, comments = Responses [] }
 
 user : String -> Decoder User
 user id =
@@ -78,6 +81,7 @@ comment id =
   succeed (Comment id)
     |: ("body" := string)
     |: (succeed nullUser)
+    |: (succeed (Responses []))
 
 item : String -> Decoder Item
 item id =
@@ -127,7 +131,8 @@ processCommentRelationships comment included payload =
   let firstRecord default things = Maybe.withDefault default (things |> List.head)
       users = handleGeneric userThing included payload
       user = firstRecord userThing.default users
-  in { comment | user = user }
+      comments = handleGeneric commentThing included payload
+  in { comment | user = user, comments = Responses comments }
 
 processItemRelationships : Item -> List JsonApiPayload -> JsonApiPayload -> Item
 processItemRelationships item included payload =
@@ -288,7 +293,17 @@ renderComment comment =
     []
     [ text comment.body
     , i [] [text (comment.user |> fullName)]
+    , renderReplies comment.comments
     ]
+
+renderReplies : Responses -> Html
+renderReplies comments =
+  case comments of
+    Responses [] -> span [] []
+    Responses comments' ->
+      ul
+        []
+        (List.map renderComment comments')
 
 app = StartApp.start { init = init, view = view, update = update, inputs = inputs }
 
@@ -299,7 +314,7 @@ main = app.html
 
 getTopics : Effects Action
 getTopics =
-  Http.get jsonApiBody "https://api.teachathena.org/api/topics?filter[search]=Be&include=teaching-moves.item.user,teaching-moves.item.comments.user"
+  Http.get jsonApiBody "https://api.teachathena.org/api/topics?filter[search]=Be&include=teaching-moves.item.user,teaching-moves.item.comments.user,teaching-moves.item.comments.comments.user"
   |> Task.toMaybe
   |> Task.map NewResponse
   |> Effects.task
