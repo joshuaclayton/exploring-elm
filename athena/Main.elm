@@ -44,6 +44,7 @@ type alias User =
 initialModel : Model
 initialModel = { topics = [] }
 
+nullTopic : Topic
 nullTopic = { id = "", locations = [], name = "", teaching_moves = [] }
 
 nullTeachingMove : TeachingMove
@@ -88,39 +89,64 @@ init = (initialModel, getTopics)
 
 
 
-processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
-processTeachingMoveRelationships teachingMove included payload =
-  let items = handleItems "items" included payload
-      item = Maybe.withDefault nullItem (items |> List.head)
-  in { teachingMove | item = item }
-
 processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
 processTopicRelationships topic included payload =
-  let teachingMoves = handle "teaching-moves" included payload
+  let teachingMoves = handleGeneric teachingMoveThing included payload
   in { topic | teaching_moves = teachingMoves }
 
-nullRelationshipProcessor : a -> List JsonApiPayload -> JsonApiPayload -> a
+processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
+processTeachingMoveRelationships teachingMove included payload =
+  let firstRecord default things = Maybe.withDefault default (things |> List.head)
+      items = handleGeneric itemThing included payload
+      item = firstRecord itemThing.default items
+  in { teachingMove | item = item }
+
+nullRelationshipProcessor : a -> List b -> b -> a
 nullRelationshipProcessor generic included genericPayload =
   generic
 
-handle : String -> List JsonApiPayload -> JsonApiPayload -> List TeachingMove
-handle filter includedRecords primaryRecord =
-  let relationshipIds = relationshipIdsByType filter primaryRecord.relationships
+filterRecordsForRelationship : String -> String -> List JsonApiRelationship -> List JsonApiPayload -> List JsonApiPayload
+filterRecordsForRelationship relationshipName filter allRelationships includedRecords =
+  let relationshipIds = relationshipIdsByType relationshipName allRelationships
       filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
-      filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
-  in List.map (processDomainEntity teachingMove processTeachingMoveRelationships includedRecords) filteredRecords
+  in
+      List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
 
+handleGeneric : Thing a -> List JsonApiPayload -> JsonApiPayload -> List a
+handleGeneric thing includedRecords primaryRecord =
+  let filteredRecords = filterRecordsForRelationship thing.relationshipName thing.typeName primaryRecord.relationships includedRecords
+  in List.map (thing.processor includedRecords) filteredRecords
 
-handleItems : String -> List JsonApiPayload -> JsonApiPayload -> List Item
-handleItems filter includedRecords primaryRecord =
-  let relationshipIds = relationshipIdsByType "item" primaryRecord.relationships
-      filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
-      filteredRecords = List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
-  in List.map (processDomainEntity item nullRelationshipProcessor includedRecords) filteredRecords
+type alias Thing a =
+  { processor: (List JsonApiPayload -> JsonApiPayload -> a)
+  , relationshipName: String
+  , typeName: String
+  , default: a
+  }
 
+itemThing : Thing Item
+itemThing =
+  { processor = (processDomainEntity item nullRelationshipProcessor)
+  , relationshipName = "item"
+  , typeName = "items"
+  , default = nullItem
+  }
 
+teachingMoveThing : Thing TeachingMove
+teachingMoveThing =
+  { processor = (processDomainEntity teachingMove processTeachingMoveRelationships)
+  , relationshipName = "teaching-moves"
+  , typeName = "teaching-moves"
+  , default = nullTeachingMove
+  }
 
-
+topicThing : Thing Topic
+topicThing =
+  { processor = (processDomainEntity topic processTopicRelationships)
+  , relationshipName = "topics"
+  , typeName = "topics"
+  , default = nullTopic
+  }
 
 
 
@@ -138,7 +164,7 @@ update action model =
     NoOp -> noEffects model
     NewResponse data ->
       let payload = Maybe.withDefault nullJsonApiBody data
-      in noEffects { model | topics = (filterPayloadByType payload.data "topics" (processDomainEntity topic processTopicRelationships payload.included)) }
+      in noEffects { model | topics = (filterPayloadByType payload.data topicThing.typeName (topicThing.processor payload.included)) }
 
 inputs : List (Signal Action)
 inputs = []
