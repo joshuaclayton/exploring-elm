@@ -20,6 +20,7 @@ type alias Item =
   , description: String
   , requesting_feedback: Bool
   , user: User
+  , comments: List Comment
   }
 
 type alias TeachingMove =
@@ -42,6 +43,12 @@ type alias User =
   , last_name: String
   }
 
+type alias Comment =
+  { id: String
+  , body: String
+  , user: User
+  }
+
 initialModel : Model
 initialModel = { topics = [] }
 
@@ -52,16 +59,25 @@ nullTeachingMove : TeachingMove
 nullTeachingMove = { id = "", location_in_topic = "", line_number = "", item = nullItem }
 
 nullItem : Item
-nullItem = { id = "", name = "", description = "", requesting_feedback = False, user = nullUser }
+nullItem = { id = "", name = "", description = "", requesting_feedback = False, user = nullUser, comments = [] }
 
 nullUser : User
 nullUser = { id = "", first_name = "", last_name = "" }
+
+nullComment : Comment
+nullComment = { id = "", body = "", user = nullUser }
 
 user : String -> Decoder User
 user id =
   succeed (User id)
     |: ("first-name" := string)
     |: ("last-name" := string)
+
+comment : String -> Decoder Comment
+comment id =
+  succeed (Comment id)
+    |: ("body" := string)
+    |: (succeed nullUser)
 
 item : String -> Decoder Item
 item id =
@@ -70,6 +86,7 @@ item id =
     |: ("description" := oneOf [ string, null "" ])
     |: ("requesting-feedback" := bool)
     |: (succeed nullUser)
+    |: (succeed [])
 
 topic : String -> Decoder Topic
 topic id =
@@ -105,12 +122,20 @@ processTopicRelationships topic included payload =
   let teachingMoves = handleGeneric teachingMoveThing included payload
   in { topic | teaching_moves = teachingMoves }
 
+processCommentRelationships : Comment -> List JsonApiPayload -> JsonApiPayload -> Comment
+processCommentRelationships comment included payload =
+  let firstRecord default things = Maybe.withDefault default (things |> List.head)
+      users = handleGeneric userThing included payload
+      user = firstRecord userThing.default users
+  in { comment | user = user }
+
 processItemRelationships : Item -> List JsonApiPayload -> JsonApiPayload -> Item
 processItemRelationships item included payload =
   let firstRecord default things = Maybe.withDefault default (things |> List.head)
       users = handleGeneric userThing included payload
       user = firstRecord userThing.default users
-  in { item | user = user }
+      comments = handleGeneric commentThing included payload
+  in { item | user = user, comments = comments }
 
 processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
 processTeachingMoveRelationships teachingMove included payload =
@@ -156,6 +181,14 @@ userThing =
   , relationshipName = "user"
   , typeName = "users"
   , default = nullUser
+  }
+
+commentThing : Thing Comment
+commentThing =
+  { processor = (processDomainEntity comment processCommentRelationships)
+  , relationshipName = "comments"
+  , typeName = "comments"
+  , default = nullComment
   }
 
 teachingMoveThing : Thing TeachingMove
@@ -221,8 +254,41 @@ renderTeachingMove : TeachingMove -> Html
 renderTeachingMove teachingMove =
   li [] [
     text (teachingMove.line_number ++ " - " ++ teachingMove.location_in_topic)
-  , text (teachingMove.item.name ++ " by " ++ teachingMove.item.user.first_name ++ " " ++ teachingMove.item.user.last_name)
+  , renderItem teachingMove teachingMove.item
   ]
+
+fullName : User -> String
+fullName user = user.first_name ++ " " ++ user.last_name
+
+renderItem : TeachingMove -> Item -> Html
+renderItem teachingMove item =
+  let fullName user = user.first_name ++ " " ++ user.last_name
+  in
+    div [] [
+      h2 [] [text teachingMove.item.name]
+    , p [] [text ("by " ++ (fullName item.user))]
+    , p [] [text item.description]
+    , (renderComments item.comments)
+    ]
+
+renderComments : List Comment -> Html
+renderComments comments =
+  case comments of
+    [] -> div [] []
+    _ ->
+      div
+        []
+        [ h3 [] [text "Comments"]
+        , ul [] (List.map renderComment comments)
+        ]
+
+renderComment : Comment -> Html
+renderComment comment =
+  li
+    []
+    [ text comment.body
+    , i [] [text (comment.user |> fullName)]
+    ]
 
 app = StartApp.start { init = init, view = view, update = update, inputs = inputs }
 
@@ -233,7 +299,7 @@ main = app.html
 
 getTopics : Effects Action
 getTopics =
-  Http.get jsonApiBody "https://api.teachathena.org/api/topics?filter[search]=Be&include=teaching-moves.item.user"
+  Http.get jsonApiBody "https://api.teachathena.org/api/topics?filter[search]=Be&include=teaching-moves.item.user,teaching-moves.item.comments.user"
   |> Task.toMaybe
   |> Task.map NewResponse
   |> Effects.task
