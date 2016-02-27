@@ -19,6 +19,7 @@ type alias Item =
   , name: String
   , description: String
   , requesting_feedback: Bool
+  , user: User
   }
 
 type alias TeachingMove =
@@ -51,7 +52,16 @@ nullTeachingMove : TeachingMove
 nullTeachingMove = { id = "", location_in_topic = "", line_number = "", item = nullItem }
 
 nullItem : Item
-nullItem = { id = "", name = "", description = "", requesting_feedback = False }
+nullItem = { id = "", name = "", description = "", requesting_feedback = False, user = nullUser }
+
+nullUser : User
+nullUser = { id = "", first_name = "", last_name = "" }
+
+user : String -> Decoder User
+user id =
+  succeed (User id)
+    |: ("first-name" := string)
+    |: ("last-name" := string)
 
 item : String -> Decoder Item
 item id =
@@ -59,6 +69,7 @@ item id =
     |: ("name" := string)
     |: ("description" := oneOf [ string, null "" ])
     |: ("requesting-feedback" := bool)
+    |: (succeed nullUser)
 
 topic : String -> Decoder Topic
 topic id =
@@ -94,6 +105,13 @@ processTopicRelationships topic included payload =
   let teachingMoves = handleGeneric teachingMoveThing included payload
   in { topic | teaching_moves = teachingMoves }
 
+processItemRelationships : Item -> List JsonApiPayload -> JsonApiPayload -> Item
+processItemRelationships item included payload =
+  let firstRecord default things = Maybe.withDefault default (things |> List.head)
+      users = handleGeneric userThing included payload
+      user = firstRecord userThing.default users
+  in { item | user = user }
+
 processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
 processTeachingMoveRelationships teachingMove included payload =
   let firstRecord default things = Maybe.withDefault default (things |> List.head)
@@ -126,10 +144,18 @@ type alias Thing a =
 
 itemThing : Thing Item
 itemThing =
-  { processor = (processDomainEntity item nullRelationshipProcessor)
+  { processor = (processDomainEntity item processItemRelationships)
   , relationshipName = "item"
   , typeName = "items"
   , default = nullItem
+  }
+
+userThing : Thing User
+userThing =
+  { processor = (processDomainEntity user nullRelationshipProcessor)
+  , relationshipName = "user"
+  , typeName = "users"
+  , default = nullUser
   }
 
 teachingMoveThing : Thing TeachingMove
@@ -195,7 +221,7 @@ renderTeachingMove : TeachingMove -> Html
 renderTeachingMove teachingMove =
   li [] [
     text (teachingMove.line_number ++ " - " ++ teachingMove.location_in_topic)
-  , text teachingMove.item.name
+  , text (teachingMove.item.name ++ " by " ++ teachingMove.item.user.first_name ++ " " ++ teachingMove.item.user.last_name)
   ]
 
 app = StartApp.start { init = init, view = view, update = update, inputs = inputs }
@@ -207,7 +233,7 @@ main = app.html
 
 getTopics : Effects Action
 getTopics =
-  Http.get jsonApiBody "https://api.teachathena.org/api/topics?filter[search]=Be&include=teaching-moves.item"
+  Http.get jsonApiBody "https://api.teachathena.org/api/topics?filter[search]=Be&include=teaching-moves.item.user"
   |> Task.toMaybe
   |> Task.map NewResponse
   |> Effects.task
