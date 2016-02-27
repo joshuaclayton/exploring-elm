@@ -278,7 +278,7 @@ renderComments comments =
     _ ->
       div
         []
-        [ h3 [] [text "Comments"]
+        [ h3 [] [text ("Comments (" ++ (comments |> List.length |> toString) ++ ")")]
         , ul [] (List.map renderComment comments)
         ]
 
