@@ -117,96 +117,84 @@ init = (initialModel, getTopics)
 
 
 
-
-
-
-
 processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
 processTopicRelationships topic included payload =
-  let teachingMoves = handleGeneric teachingMoveThing included payload
-  in { topic | teaching_moves = teachingMoves }
+  let hasManyTeachingMoves = hasMany teachingMoveRelationshipProcessor included payload
+  in { topic | teaching_moves = hasManyTeachingMoves }
 
 processCommentRelationships : Comment -> List JsonApiPayload -> JsonApiPayload -> Comment
 processCommentRelationships comment included payload =
-  let firstRecord default things = Maybe.withDefault default (things |> List.head)
-      users = handleGeneric userThing included payload
-      user = firstRecord userThing.default users
-      comments = handleGeneric commentThing included payload
-  in { comment | user = user, comments = Responses comments }
+  let hasManyComments = hasMany commentRelationshipProcessor included payload
+      hasOneUser = hasOne userRelationshipProcessor included payload
+  in { comment | user = hasOneUser, comments = Responses hasManyComments }
 
 processItemRelationships : Item -> List JsonApiPayload -> JsonApiPayload -> Item
 processItemRelationships item included payload =
-  let firstRecord default things = Maybe.withDefault default (things |> List.head)
-      users = handleGeneric userThing included payload
-      user = firstRecord userThing.default users
-      comments = handleGeneric commentThing included payload
-  in { item | user = user, comments = comments }
+  let hasOneUser = hasOne userRelationshipProcessor included payload
+      hasManyComments = hasMany commentRelationshipProcessor included payload
+  in { item | user = hasOneUser, comments = hasManyComments }
 
 processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
 processTeachingMoveRelationships teachingMove included payload =
-  let firstRecord default things = Maybe.withDefault default (things |> List.head)
-      items = handleGeneric itemThing included payload
-      item = firstRecord itemThing.default items
-  in { teachingMove | item = item }
+  let hasOneItem = hasOne itemRelationshipProcessor included payload
+  in { teachingMove | item = hasOneItem }
 
-nullRelationshipProcessor : a -> List b -> b -> a
-nullRelationshipProcessor generic included genericPayload =
-  generic
 
-filterRecordsForRelationship : String -> String -> List JsonApiRelationship -> List JsonApiPayload -> List JsonApiPayload
-filterRecordsForRelationship relationshipName filter allRelationships includedRecords =
-  let relationshipIds = relationshipIdsByType relationshipName allRelationships
-      filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
-  in
-      List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
 
-handleGeneric : Thing a -> List JsonApiPayload -> JsonApiPayload -> List a
-handleGeneric thing includedRecords primaryRecord =
-  let filteredRecords = filterRecordsForRelationship thing.relationshipName thing.typeName primaryRecord.relationships includedRecords
-  in List.map (thing.processor includedRecords) filteredRecords
 
-type alias Thing a =
-  { processor: (List JsonApiPayload -> JsonApiPayload -> a)
-  , relationshipName: String
-  , typeName: String
-  , default: a
-  }
 
-itemThing : Thing Item
-itemThing =
-  { processor = (processDomainEntity item processItemRelationships)
+
+
+
+
+
+
+
+
+
+
+
+
+itemRelationshipProcessor : RelationshipProcessor Item
+itemRelationshipProcessor =
+  { decoder = item
+  , relationships = processItemRelationships
   , relationshipName = "item"
   , typeName = "items"
   , default = nullItem
   }
 
-userThing : Thing User
-userThing =
-  { processor = (processDomainEntity user nullRelationshipProcessor)
+userRelationshipProcessor : RelationshipProcessor User
+userRelationshipProcessor =
+  { decoder = user
+  , relationships = nullRelationshipProcessor
   , relationshipName = "user"
   , typeName = "users"
   , default = nullUser
   }
 
-commentThing : Thing Comment
-commentThing =
-  { processor = (processDomainEntity comment processCommentRelationships)
+commentRelationshipProcessor : RelationshipProcessor Comment
+commentRelationshipProcessor =
+  { decoder = comment
+  , relationships = processCommentRelationships
   , relationshipName = "comments"
   , typeName = "comments"
   , default = nullComment
   }
 
-teachingMoveThing : Thing TeachingMove
-teachingMoveThing =
-  { processor = (processDomainEntity teachingMove processTeachingMoveRelationships)
+teachingMoveRelationshipProcessor : RelationshipProcessor TeachingMove
+teachingMoveRelationshipProcessor =
+  { decoder = teachingMove
+  , relationships = processTeachingMoveRelationships
   , relationshipName = "teaching-moves"
   , typeName = "teaching-moves"
   , default = nullTeachingMove
   }
 
-topicThing : Thing Topic
-topicThing =
-  { processor = (processDomainEntity topic processTopicRelationships)
+topicRelationshipProcessor : RelationshipProcessor Topic
+topicRelationshipProcessor =
+  { decoder = topic
+  , relationships = processTopicRelationships
   , relationshipName = "topics"
   , typeName = "topics"
   , default = nullTopic
@@ -228,7 +216,8 @@ update action model =
     NoOp -> noEffects model
     NewResponse data ->
       let payload = Maybe.withDefault nullJsonApiBody data
-      in noEffects { model | topics = (filterPayloadByType payload.data topicThing.typeName (topicThing.processor payload.included)) }
+          processor' = (processDomainEntity topicRelationshipProcessor.decoder topicRelationshipProcessor.relationships)
+      in noEffects { model | topics = (filterPayloadByType payload.data topicRelationshipProcessor.typeName (processor' payload.included)) }
 
 inputs : List (Signal Action)
 inputs = []

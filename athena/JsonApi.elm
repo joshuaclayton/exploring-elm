@@ -1,4 +1,4 @@
-module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, jsonApiBody, filterPayloadByType, relationshipIdsByType, filterListByType, processDomainEntity, nullJsonApiBody) where
+module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, RelationshipProcessor, hasOne, hasMany, nullRelationshipProcessor, jsonApiBody, filterPayloadByType, relationshipIdsByType, filterListByType, processDomainEntity, nullJsonApiBody) where
 
 import Json.Decode as Json exposing (..)
 import Json.Decode.Extra exposing ((|:))
@@ -52,11 +52,67 @@ jsonApiIdentity =
     |: ("id" := string)
     |: ("type" := string)
 
+
+
+
+
+decodedValue : (String -> Decoder a) -> JsonApiPayload -> Result String a
+decodedValue decoder payload =
+  decodeValue (decoder payload.id) payload.attributes
+
 processDomainEntity : (String -> Decoder a) -> (a -> List JsonApiPayload -> JsonApiPayload -> a) -> List JsonApiPayload -> JsonApiPayload -> a
 processDomainEntity genericDecoder relationshipProcessor includedRecords payload =
-  case decodeValue (genericDecoder payload.id) payload.attributes of
-    Ok decodedValue' -> relationshipProcessor decodedValue' includedRecords payload
+  case decodedValue genericDecoder payload of
+    Ok decodedValue' -> processDomainRelationships decodedValue' relationshipProcessor includedRecords payload
     Err message -> crash message
+
+processDomainRelationships : a -> (a -> List JsonApiPayload -> JsonApiPayload -> a) -> List JsonApiPayload -> JsonApiPayload -> a
+processDomainRelationships record relationshipProcessor includedRecords payload =
+  relationshipProcessor record includedRecords payload
+
+
+nullRelationshipProcessor : a -> List b -> b -> a
+nullRelationshipProcessor generic included genericPayload =
+  generic
+
+
+filterRecordsForRelationship : String -> String -> List JsonApiRelationship -> List JsonApiPayload -> List JsonApiPayload
+filterRecordsForRelationship relationshipName filter allRelationships includedRecords =
+  let relationshipIds = relationshipIdsByType relationshipName allRelationships
+      filterRecordsToRelationship = (\record -> List.member record.id relationshipIds)
+  in
+      List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
+
+
+handleGeneric : RelationshipProcessor a -> List JsonApiPayload -> JsonApiPayload -> List a
+handleGeneric processor includedRecords primaryRecord =
+  let filteredRecords = filterRecordsForRelationship processor.relationshipName processor.typeName primaryRecord.relationships includedRecords
+      processor' = (processDomainEntity processor.decoder processor.relationships)
+  in List.map (processor' includedRecords) filteredRecords
+
+hasOne : RelationshipProcessor a -> List JsonApiPayload -> JsonApiPayload -> a
+hasOne processor included payload =
+  let firstRecord default things = Maybe.withDefault default (things |> List.head)
+      allRecords = handleGeneric processor included payload
+  in firstRecord processor.default allRecords
+
+hasMany : RelationshipProcessor a -> List JsonApiPayload -> JsonApiPayload -> List a
+hasMany processor included payload =
+  handleGeneric processor included payload
+
+
+type alias RelationshipProcessor a =
+  { decoder: (String -> Decoder a)
+  , relationships: (a -> List JsonApiPayload -> JsonApiPayload -> a)
+  , relationshipName: String
+  , typeName: String
+  , default: a
+  }
+
+
+
+
+
 
 jsonApiRelationshipTuples : List (String, Value) -> Decoder (List JsonApiRelationship)
 jsonApiRelationshipTuples listOfTuples =
