@@ -111,33 +111,50 @@ noEffects thing = (thing, Effects.none)
 
 init = (initialModel, getTopics)
 
+setUser : b -> { a | user: b } -> { a | user: b }
+setUser user record = { record | user = user }
 
+setComments : b -> { a | comments: b } -> { a | comments: b }
+setComments comments record = { record | comments = comments }
 
+setTeachingMoves : b -> { a | teaching_moves: b } -> { a | teaching_moves : b }
+setTeachingMoves teachingMoves record = { record | teaching_moves = teachingMoves }
 
-
-
+setItem : b -> { a | item: b } -> { a | item: b }
+setItem item record = { record | item = item }
 
 processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
 processTopicRelationships topic included payload =
   let hasManyTeachingMoves = hasMany teachingMoveRelationshipProcessor included payload
-  in { topic | teaching_moves = hasManyTeachingMoves }
+  in
+     topic
+     |> (setTeachingMoves hasManyTeachingMoves)
 
 processCommentRelationships : Comment -> List JsonApiPayload -> JsonApiPayload -> Comment
 processCommentRelationships comment included payload =
   let hasManyComments = hasMany commentRelationshipProcessor included payload
       hasOneUser = hasOne userRelationshipProcessor included payload
-  in { comment | user = hasOneUser, comments = Responses hasManyComments }
+  in
+     comment
+     |> (setComments (Responses hasManyComments))
+     |> (setUser hasOneUser)
 
 processItemRelationships : Item -> List JsonApiPayload -> JsonApiPayload -> Item
 processItemRelationships item included payload =
   let hasOneUser = hasOne userRelationshipProcessor included payload
       hasManyComments = hasMany commentRelationshipProcessor included payload
-  in { item | user = hasOneUser, comments = hasManyComments }
+  in
+     item
+     |> (setUser hasOneUser)
+     |> (setComments hasManyComments)
 
 processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
 processTeachingMoveRelationships teachingMove included payload =
   let hasOneItem = hasOne itemRelationshipProcessor included payload
-  in { teachingMove | item = hasOneItem }
+  in
+     teachingMove
+     |> (setItem hasOneItem)
+
 
 
 
@@ -199,6 +216,7 @@ topicRelationshipProcessor =
   , typeName = "topics"
   , default = nullTopic
   }
+
 
 
 

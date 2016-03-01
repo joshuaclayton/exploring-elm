@@ -26,6 +26,14 @@ type alias JsonApiIdentity =
   , type': String
   }
 
+type alias RelationshipProcessor a =
+  { decoder: (String -> Decoder a)
+  , relationships: (a -> List JsonApiPayload -> JsonApiPayload -> a)
+  , relationshipName: String
+  , typeName: String
+  , default: a
+  }
+
 nullJsonApiBody : JsonApiBody
 nullJsonApiBody = { data = [], included = [] }
 
@@ -51,10 +59,6 @@ jsonApiIdentity =
   succeed JsonApiIdentity
     |: ("id" := string)
     |: ("type" := string)
-
-
-
-
 
 decodedValue : (String -> Decoder a) -> JsonApiPayload -> Result String a
 decodedValue decoder payload =
@@ -83,9 +87,8 @@ filterRecordsForRelationship relationshipName filter allRelationships includedRe
   in
       List.filter filterRecordsToRelationship (filterListByType filter includedRecords)
 
-
-handleGeneric : RelationshipProcessor a -> List JsonApiPayload -> JsonApiPayload -> List a
-handleGeneric processor includedRecords primaryRecord =
+hasMany : RelationshipProcessor a -> List JsonApiPayload -> JsonApiPayload -> List a
+hasMany processor includedRecords primaryRecord =
   let filteredRecords = filterRecordsForRelationship processor.relationshipName processor.typeName primaryRecord.relationships includedRecords
       processor' = (processDomainEntity processor.decoder processor.relationships)
   in List.map (processor' includedRecords) filteredRecords
@@ -93,22 +96,8 @@ handleGeneric processor includedRecords primaryRecord =
 hasOne : RelationshipProcessor a -> List JsonApiPayload -> JsonApiPayload -> a
 hasOne processor included payload =
   let firstRecord default things = Maybe.withDefault default (things |> List.head)
-      allRecords = handleGeneric processor included payload
+      allRecords = hasMany processor included payload
   in firstRecord processor.default allRecords
-
-hasMany : RelationshipProcessor a -> List JsonApiPayload -> JsonApiPayload -> List a
-hasMany processor included payload =
-  handleGeneric processor included payload
-
-
-type alias RelationshipProcessor a =
-  { decoder: (String -> Decoder a)
-  , relationships: (a -> List JsonApiPayload -> JsonApiPayload -> a)
-  , relationshipName: String
-  , typeName: String
-  , default: a
-  }
-
 
 
 
