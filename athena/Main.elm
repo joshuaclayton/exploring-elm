@@ -123,59 +123,15 @@ setTeachingMoves teachingMoves record = { record | teaching_moves = teachingMove
 setItem : b -> { a | item: b } -> { a | item: b }
 setItem item record = { record | item = item }
 
-processTopicRelationships : Topic -> List JsonApiPayload -> JsonApiPayload -> Topic
-processTopicRelationships topic included payload =
-  let hasManyTeachingMoves = hasMany teachingMoveRelationshipProcessor included payload
-  in
-     topic
-     |> (setTeachingMoves hasManyTeachingMoves)
-
-processCommentRelationships : Comment -> List JsonApiPayload -> JsonApiPayload -> Comment
-processCommentRelationships comment included payload =
-  let hasManyComments = hasMany commentRelationshipProcessor included payload
-      hasOneUser = hasOne userRelationshipProcessor included payload
-  in
-     comment
-     |> (setComments (Responses hasManyComments))
-     |> (setUser hasOneUser)
-
-processItemRelationships : Item -> List JsonApiPayload -> JsonApiPayload -> Item
-processItemRelationships item included payload =
-  let hasOneUser = hasOne userRelationshipProcessor included payload
-      hasManyComments = hasMany commentRelationshipProcessor included payload
-  in
-     item
-     |> (setUser hasOneUser)
-     |> (setComments hasManyComments)
-
-processTeachingMoveRelationships : TeachingMove -> List JsonApiPayload -> JsonApiPayload -> TeachingMove
-processTeachingMoveRelationships teachingMove included payload =
-  let hasOneItem = hasOne itemRelationshipProcessor included payload
-  in
-     teachingMove
-     |> (setItem hasOneItem)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 itemRelationshipProcessor : RelationshipProcessor Item
 itemRelationshipProcessor =
   { decoder = item
-  , relationships = processItemRelationships
+  , relationships = (\record included payload ->
+    record
+    |> (setUser (hasOne userRelationshipProcessor included payload))
+    |> (setComments (hasMany commentRelationshipProcessor included payload))
+  )
   , relationshipName = "item"
   , typeName = "items"
   , default = nullItem
@@ -193,7 +149,11 @@ userRelationshipProcessor =
 commentRelationshipProcessor : RelationshipProcessor Comment
 commentRelationshipProcessor =
   { decoder = comment
-  , relationships = processCommentRelationships
+  , relationships = (\record included payload ->
+    record
+    |> (setComments (Responses (hasMany commentRelationshipProcessor included payload)))
+    |> (setUser (hasOne userRelationshipProcessor included payload))
+  )
   , relationshipName = "comments"
   , typeName = "comments"
   , default = nullComment
@@ -202,7 +162,10 @@ commentRelationshipProcessor =
 teachingMoveRelationshipProcessor : RelationshipProcessor TeachingMove
 teachingMoveRelationshipProcessor =
   { decoder = teachingMove
-  , relationships = processTeachingMoveRelationships
+  , relationships = (\record included payload ->
+    record
+    |> (setItem (hasOne itemRelationshipProcessor included payload))
+  )
   , relationshipName = "teaching-moves"
   , typeName = "teaching-moves"
   , default = nullTeachingMove
@@ -211,7 +174,10 @@ teachingMoveRelationshipProcessor =
 topicRelationshipProcessor : RelationshipProcessor Topic
 topicRelationshipProcessor =
   { decoder = topic
-  , relationships = processTopicRelationships
+  , relationships = (\record included payload ->
+    record
+    |> (setTeachingMoves (hasMany teachingMoveRelationshipProcessor included payload))
+  )
   , relationshipName = "topics"
   , typeName = "topics"
   , default = nullTopic
