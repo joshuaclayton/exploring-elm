@@ -1,4 +1,4 @@
-module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, RelationshipProcessor, hasOne, hasMany, nullRelationshipProcessor, jsonApiBody, filterPayloadByType, relationshipIdsByType, filterListByType, processDomainEntity, nullJsonApiBody) where
+module JsonApi (JsonApiBody, JsonApiPayload, JsonApiIdentity, JsonApiRelationship, RelationshipProcessor, hasOne, hasMany, jsonApiBody, filterPayloadByType, relationshipIdsByType, filterListByType, processDomainEntity, nullJsonApiBody) where
 
 import Json.Decode as Json exposing (..)
 import Json.Decode.Extra exposing ((|:))
@@ -73,11 +73,6 @@ processDomainEntity genericDecoder relationshipProcessor includedRecords payload
 processDomainRelationships : a -> (a -> List JsonApiPayload -> JsonApiPayload -> a) -> List JsonApiPayload -> JsonApiPayload -> a
 processDomainRelationships record relationshipProcessor includedRecords payload =
   relationshipProcessor record includedRecords payload
-
-
-nullRelationshipProcessor : a -> List b -> b -> a
-nullRelationshipProcessor generic included genericPayload =
-  generic
 
 
 filterRecordsForRelationship : String -> String -> List JsonApiRelationship -> List JsonApiPayload -> List JsonApiPayload

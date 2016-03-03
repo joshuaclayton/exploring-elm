@@ -140,7 +140,7 @@ itemRelationshipProcessor =
 userRelationshipProcessor : RelationshipProcessor User
 userRelationshipProcessor =
   { decoder = user
-  , relationships = nullRelationshipProcessor
+  , relationships = (\record included payload -> record)
   , relationshipName = "user"
   , typeName = "users"
   , default = nullUser
