@@ -37,6 +37,7 @@ item : String -> Decoder Item
 item id =
   succeed (Item id)
     |: ("name" := string)
+    |: ("item-type" := string)
     |: ("description" := oneOf [ string, null "" ])
     |: ("requesting-feedback" := bool)
     |: (succeed nullUser)

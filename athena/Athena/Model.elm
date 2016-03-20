@@ -4,6 +4,7 @@ module Athena.Model (..) where
 type alias Item =
   { id : String
   , name : String
+  , category : String
   , description : String
   , requesting_feedback : Bool
   , user : User
@@ -58,7 +59,7 @@ nullTeachingMove =
 
 nullItem : Item
 nullItem =
-  { id = "", name = "", description = "", requesting_feedback = False, user = nullUser, comments = [] }
+  { id = "", name = "", category = "", description = "", requesting_feedback = False, user = nullUser, comments = [] }
 
 
 nullUser : User

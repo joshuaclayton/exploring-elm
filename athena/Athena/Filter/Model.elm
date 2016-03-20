@@ -10,6 +10,7 @@ type Action
   | FilterLocation String
   | FilterTextSearch String
   | FilterTeacher User
+  | FilterCategory String
 
 
 type LocationFilter
@@ -27,16 +28,26 @@ type TeacherFilter
   | Teacher User
 
 
+type CategoryFilter
+  = CategoryNoOp
+  | Category String
+
+
 type alias Model =
   { filterByLocation : LocationFilter
   , filterBySearch : SearchFilter
   , filterByTeacher : TeacherFilter
+  , filterByCategory : CategoryFilter
   }
 
 
 initialModel : Model
 initialModel =
-  { filterByLocation = LocationNoOp, filterBySearch = SearchNoOp, filterByTeacher = TeacherNoOp }
+  { filterByLocation = LocationNoOp
+  , filterBySearch = SearchNoOp
+  , filterByTeacher = TeacherNoOp
+  , filterByCategory = CategoryNoOp
+  }
 
 
 applyFilters : Topic -> Model -> Topic
@@ -45,6 +56,7 @@ applyFilters topic filter =
     |> filterByLocation filter.filterByLocation
     |> filterBySearch filter.filterBySearch
     |> filterByTeacher filter.filterByTeacher
+    |> filterByCategory filter.filterByCategory
 
 
 filterByLocation : LocationFilter -> Topic -> Topic
@@ -102,6 +114,23 @@ filterByTeacher filter topic =
           teachingMove.item.user == user
 
         TeacherNoOp ->
+          True
+
+    teachingMoves =
+      List.filter filterTeachingMove topic.teaching_moves
+  in
+    { topic | teaching_moves = teachingMoves }
+
+
+filterByCategory : CategoryFilter -> Topic -> Topic
+filterByCategory filter topic =
+  let
+    filterTeachingMove teachingMove =
+      case filter of
+        Category categoryName ->
+          teachingMove.item.category == categoryName
+
+        CategoryNoOp ->
           True
 
     teachingMoves =

@@ -28,6 +28,11 @@ teachersFor topic =
   uniqBy .id (List.map (.item >> .user) topic.teaching_moves)
 
 
+categoriesFor : Topic -> List String
+categoriesFor topic =
+  uniqBy identity (List.map (.item >> .category) topic.teaching_moves)
+
+
 renderTopic : Signal.Address Action -> Model -> Topic -> Html
 renderTopic address model topic =
   let
@@ -36,11 +41,18 @@ renderTopic address model topic =
   in
     div
       []
-      [ h2 [] [ text (topic.name ++ " (id: " ++ topic.id ++ ")") ]
-      , Athena.Filter.View.locationsFilter (Signal.forwardTo address HandleFilter) topic.locations
-      , Athena.Filter.View.teachersFilter (Signal.forwardTo address HandleFilter) (teachersFor topic) model.filters
-      , ul [] (List.map renderTeachingMove topic'.teaching_moves)
-      , hr [] []
+      [ aside
+          []
+          [ Athena.Filter.View.locationsFilter (Signal.forwardTo address HandleFilter) topic.locations
+          , Athena.Filter.View.teachersFilter (Signal.forwardTo address HandleFilter) (teachersFor topic) model.filters
+          , Athena.Filter.View.categoriesFilter (Signal.forwardTo address HandleFilter) (categoriesFor topic)
+          ]
+      , section
+          []
+          [ h1 [] [ text (topic.name ++ " (id: " ++ topic.id ++ ")") ]
+          , ul [] (List.map renderTeachingMove topic'.teaching_moves)
+          , hr [] []
+          ]
       ]
 
 
@@ -61,7 +73,7 @@ renderItem teachingMove item =
   in
     div
       []
-      [ h2 [] [ text teachingMove.item.name ]
+      [ h4 [] [ text teachingMove.item.name ]
       , p [] [ text ("by " ++ (fullName item.user)) ]
       , p [] [ text item.description ]
       , (renderComments item.comments)

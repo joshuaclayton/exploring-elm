@@ -41,6 +41,21 @@ update action model =
       in
         ( { model | filterByLocation = resultLocationFilter }, Effects.none )
 
+    FilterCategory category ->
+      let
+        isFilterCurrentlySet =
+          model.filterByCategory == Category category
+
+        resultFilter =
+          case isFilterCurrentlySet of
+            True ->
+              CategoryNoOp
+
+            False ->
+              Category category
+      in
+        ( { model | filterByCategory = resultFilter }, Effects.none )
+
     FilterTextSearch search ->
       let
         resultSearchFilter =
